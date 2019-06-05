@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		2E0C77BB22A7478C00C2D672 /* UsefulFunctions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E0C77BA22A7478C00C2D672 /* UsefulFunctions.swift */; };
 		2EC6C60022A673C2001C517D /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EC6C5FF22A673C2001C517D /* AppDelegate.swift */; };
 		2EC6C60222A673C2001C517D /* art.scnassets in Resources */ = {isa = PBXBuildFile; fileRef = 2EC6C60122A673C2001C517D /* art.scnassets */; };
 		2EC6C60422A673C2001C517D /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EC6C60322A673C2001C517D /* ViewController.swift */; };
@@ -16,6 +17,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		2E0C77BA22A7478C00C2D672 /* UsefulFunctions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsefulFunctions.swift; sourceTree = "<group>"; };
 		2EC6C5FC22A673C2001C517D /* ARKit-Data-Logger.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "ARKit-Data-Logger.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		2EC6C5FF22A673C2001C517D /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		2EC6C60122A673C2001C517D /* art.scnassets */ = {isa = PBXFileReference; lastKnownFileType = wrapper.scnassets; path = art.scnassets; sourceTree = "<group>"; };
@@ -63,6 +65,7 @@
 				2EC6C60122A673C2001C517D /* art.scnassets */,
 				2EC6C60A22A673C3001C517D /* LaunchScreen.storyboard */,
 				2EC6C60D22A673C3001C517D /* Info.plist */,
+				2E0C77BA22A7478C00C2D672 /* UsefulFunctions.swift */,
 			);
 			path = "ARKit-Data-Logger";
 			sourceTree = "<group>";
@@ -140,6 +143,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				2EC6C60422A673C2001C517D /* ViewController.swift in Sources */,
+				2E0C77BB22A7478C00C2D672 /* UsefulFunctions.swift in Sources */,
 				2EC6C60022A673C2001C517D /* AppDelegate.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
