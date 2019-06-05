@@ -135,14 +135,43 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
     
     // define if ARSession is didUpdate (callback function)
     func session(_ session: ARSession, didUpdate frame: ARFrame) {
-        print("Frame updated!")
-        // Do something with the new transform
-        let currentTransform = frame.camera.transform
-        print("x: \(currentTransform.columns.3.x)")
-        print("y: \(currentTransform.columns.3.y)")
-        print("z: \(currentTransform.columns.3.z)")
         
-        //print(currentTransform)
+        // obtain current transformation 4x4 matrix
+        let timestamp = frame.timestamp * self.mulSecondToNanoSecond
+        let ARKitTrackingState = frame.camera.trackingState
+        let T_gc = frame.camera.transform
+        
+        let r_11 = T_gc.columns.0.x
+        let r_12 = T_gc.columns.1.x
+        let r_13 = T_gc.columns.2.x
+        
+        let r_21 = T_gc.columns.0.y
+        let r_22 = T_gc.columns.1.y
+        let r_23 = T_gc.columns.2.y
+        
+        let r_31 = T_gc.columns.0.z
+        let r_32 = T_gc.columns.1.z
+        let r_33 = T_gc.columns.2.z
+        
+        let t_x = T_gc.columns.3.x
+        let t_y = T_gc.columns.3.y
+        let t_z = T_gc.columns.3.z
+        
+        // custom queue to save ARKit processing data
+        self.customQueue.async {
+            if (self.isRecording) {
+                let ARKitData = String(format: "%.0f %.6f %.6f %.6f %.6f %.6f %.6f %.6f %.6f %.6f %.6f %.6f %.6f \n",
+                                       timestamp,
+                                       r_11, r_12, r_13, t_x,
+                                       r_21, r_22, r_23, t_y,
+                                       r_31, r_32, r_33, t_z)
+                if let ARKitDataToWrite = ARKitData.data(using: .utf8) {
+                    self.fileHandler[0].write(ARKitDataToWrite)
+                } else {
+                    os_log("Failed to write data record", log: OSLog.default, type: .fault)
+                }
+            }
+        }
     }
     
     
