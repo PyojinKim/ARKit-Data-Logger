@@ -21,6 +21,9 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
     
     
     // constants for collecting data
+    let numTextFiles = 2
+    let ARKIT_CAMERA_POSE = 0
+    let ARKIT_POINT_CLOUD = 1
     var isRecording: Bool = false
     let customQueue: DispatchQueue = DispatchQueue(label: "pyojinkim.me")
     
@@ -36,9 +39,9 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
     
     
     // text file input & output
-    var fileHandler = [FileHandle]()
-    var fileURL = [URL]()
-    var fileName: String = "ARKit_data_collection.txt"
+    var fileHandlers = [FileHandle]()
+    var fileURLs = [URL]()
+    var fileNames: [String] = ["ARKit_camera_pose.txt", "ARKit_point_cloud.txt"]
     
     
     override func viewDidLoad() {
@@ -56,7 +59,6 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
         sceneView.delegate = self
         sceneView.showsStatistics = true
         sceneView.session.delegate = self
-        
     }
     
     
@@ -114,12 +116,14 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
             
             customQueue.async {
                 self.isRecording = false
-                for handler in self.fileHandler {
-                    handler.closeFile()
-                }
-                DispatchQueue.main.async {
-                    let activityVC = UIActivityViewController(activityItems: self.fileURL, applicationActivities: nil)
-                    self.present(activityVC, animated: true, completion: nil)
+                if (self.fileHandlers.count == self.numTextFiles) {
+                    for handler in self.fileHandlers {
+                        handler.closeFile()
+                    }
+                    DispatchQueue.main.async {
+                        let activityVC = UIActivityViewController(activityItems: self.fileURLs, applicationActivities: nil)
+                        self.present(activityVC, animated: true, completion: nil)
+                    }
                 }
             }
             
@@ -159,16 +163,37 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
         
         // custom queue to save ARKit processing data
         self.customQueue.async {
-            if (self.isRecording) {
-                let ARKitData = String(format: "%.0f %.6f %.6f %.6f %.6f %.6f %.6f %.6f %.6f %.6f %.6f %.6f %.6f \n",
-                                       timestamp,
-                                       r_11, r_12, r_13, t_x,
-                                       r_21, r_22, r_23, t_y,
-                                       r_31, r_32, r_33, t_z)
-                if let ARKitDataToWrite = ARKitData.data(using: .utf8) {
-                    self.fileHandler[0].write(ARKitDataToWrite)
+            if ((self.fileHandlers.count == self.numTextFiles) && self.isRecording) {
+                
+                // 1) record ARKit 6-DoF camera pose
+                let ARKitPoseData = String(format: "%.0f %.6f %.6f %.6f %.6f %.6f %.6f %.6f %.6f %.6f %.6f %.6f %.6f \n",
+                                           timestamp,
+                                           r_11, r_12, r_13, t_x,
+                                           r_21, r_22, r_23, t_y,
+                                           r_31, r_32, r_33, t_z)
+                if let ARKitPoseDataToWrite = ARKitPoseData.data(using: .utf8) {
+                    self.fileHandlers[self.ARKIT_CAMERA_POSE].write(ARKitPoseDataToWrite)
                 } else {
                     os_log("Failed to write data record", log: OSLog.default, type: .fault)
+                }
+                
+                // 2) record ARKit 3D point cloud only for visualization
+                if let rawFeaturePointsArray = frame.rawFeaturePoints {
+                    let featurePointsPosition = rawFeaturePointsArray.points
+                    let featurePointsIndex = rawFeaturePointsArray.identifiers
+                    for i in 0...(featurePointsPosition.count - 1) {
+                        let ARKitPointData = String(format: "%.0f %d %.6f %.6f %.6f \n",
+                                                    timestamp,
+                                                    featurePointsIndex[i],
+                                                    featurePointsPosition[i].x,
+                                                    featurePointsPosition[i].y,
+                                                    featurePointsPosition[i].z)
+                        if let ARKitPointDataToWrite = ARKitPointData.data(using: .utf8) {
+                            self.fileHandlers[self.ARKIT_POINT_CLOUD].write(ARKitPointDataToWrite)
+                        } else {
+                            os_log("Failed to write data record", log: OSLog.default, type: .fault)
+                        }
+                    }
                 }
             }
         }
@@ -178,7 +203,7 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
     // some useful functions
     private func errorMsg(msg: String) {
         DispatchQueue.main.async {
-            let fileAlert = UIAlertController(title: "IMURecorder", message: msg, preferredStyle: .alert)
+            let fileAlert = UIAlertController(title: "ARKit-Data-Logger", message: msg, preferredStyle: .alert)
             fileAlert.addAction(UIAlertAction(title: "OK", style: .cancel, handler: nil))
             self.present(fileAlert, animated: true, completion: nil)
         }
@@ -188,37 +213,39 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
     private func createFiles() -> Bool {
         
         // initialize file handlers
-        self.fileHandler.removeAll()
-        self.fileURL.removeAll()
+        self.fileHandlers.removeAll()
+        self.fileURLs.removeAll()
         
-        // create ARKit result text file
+        // create ARKit result text files
         let header = "Created at \(timeToString())"
-        var url = URL(fileURLWithPath: NSTemporaryDirectory())
-        url.appendPathComponent(fileName)
-        self.fileURL.append(url)
-        
-        // delete previous text file
-        if (FileManager.default.fileExists(atPath: url.path)) {
-            do {
-                try FileManager.default.removeItem(at: url)
-            } catch {
-                os_log("cannot remove previous file", log:.default, type:.error)
+        for i in 0...(self.numTextFiles - 1) {
+            var url = URL(fileURLWithPath: NSTemporaryDirectory())
+            url.appendPathComponent(fileNames[i])
+            self.fileURLs.append(url)
+            
+            // delete previous text file
+            if (FileManager.default.fileExists(atPath: url.path)) {
+                do {
+                    try FileManager.default.removeItem(at: url)
+                } catch {
+                    os_log("cannot remove previous file", log:.default, type:.error)
+                    return false
+                }
+            }
+            
+            // create new text file
+            if (!FileManager.default.createFile(atPath: url.path, contents: header.data(using: String.Encoding.utf8), attributes: nil)) {
+                self.errorMsg(msg: "cannot create file \(self.fileNames[i])")
                 return false
             }
-        }
-        
-        // create new text file
-        if (!FileManager.default.createFile(atPath: url.path, contents: header.data(using: String.Encoding.utf8), attributes: nil)) {
-            self.errorMsg(msg: "cannot create file \(self.fileName)")
-            return false
-        }
-        
-        // assign new file handler
-        let fileHandle: FileHandle? = FileHandle(forWritingAtPath: url.path)
-        if let handle = fileHandle {
-            self.fileHandler.append(handle)
-        } else {
-            return false
+            
+            // assign new file handler
+            let fileHandle: FileHandle? = FileHandle(forWritingAtPath: url.path)
+            if let handle = fileHandle {
+                self.fileHandlers.append(handle)
+            } else {
+                return false
+            }
         }
         
         // return true if everything is alright
