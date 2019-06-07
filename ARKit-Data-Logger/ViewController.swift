@@ -17,8 +17,12 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
     // cellphone screen UI outlet objects
     @IBOutlet weak var startStopButton: UIButton!
     @IBOutlet weak var statusLabel: UILabel!
+    
     @IBOutlet var sceneView: ARSCNView!
     
+    @IBOutlet weak var numberOfFeatureLabel: UILabel!
+    @IBOutlet weak var trackingStatusLabel: UILabel!
+    @IBOutlet weak var updateRateLabel: UILabel!
     
     // constants for collecting data
     let numTextFiles = 2
@@ -35,6 +39,7 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
             statusLabel.text = interfaceIntTime(second: secondCounter)
         }
     }
+    var previousTimestamp: Double = 0
     let mulSecondToNanoSecond: Double = 1000000000
     
     
@@ -128,6 +133,10 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
             }
             
             // initialize UI on the screen
+            self.numberOfFeatureLabel.text = ""
+            self.trackingStatusLabel.text = ""
+            self.updateRateLabel.text = ""
+            
             self.startStopButton.setTitle("Start", for: .normal)
             self.statusLabel.text = "Ready"
             
@@ -142,6 +151,9 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
         
         // obtain current transformation 4x4 matrix
         let timestamp = frame.timestamp * self.mulSecondToNanoSecond
+        let updateRate = self.mulSecondToNanoSecond / Double(timestamp - previousTimestamp)
+        previousTimestamp = timestamp
+        
         let ARKitTrackingState = frame.camera.trackingState
         let T_gc = frame.camera.transform
         
@@ -160,6 +172,15 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
         let t_x = T_gc.columns.3.x
         let t_y = T_gc.columns.3.y
         let t_z = T_gc.columns.3.z
+        
+        // dispatch queue to display UI
+        DispatchQueue.main.async {
+            self.updateRateLabel.text = String(format:"%.3f Hz", updateRate)
+            self.trackingStatusLabel.text = "\(ARKitTrackingState)"
+            if let rawFeaturePointsArray = frame.rawFeaturePoints {
+                self.numberOfFeatureLabel.text = String(format:"%03d", rawFeaturePointsArray.points.count)
+            }
+        }
         
         // custom queue to save ARKit processing data
         self.customQueue.async {
