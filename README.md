@@ -15,6 +15,16 @@ This Xcode project is written under Xcode Version 10.2.1 (10E1001) for iOS 12.2.
 It doesn't currently check for sensor availability before logging.
 
 
+## Reference Frames and Device Attitude ##
+
+In the global (inertial or reference) frame in ARKit, the Y-axis (up) matches the direction of gravity as detected by the device's motion sensing hardware; that is, the vector (0,-1,0) points downward.
+For the Z-axis, ARKit chooses a basis vector (0,0,-1) pointing in the direction the device camera faces and perpendicular to the gravity axis.
+ARKit chooses a X-axis based on the Z- and Y-axes using the right hand rule.
+The ARKit (camera) body frame's X-axis always points along the long axis of the device (down).
+Y-axis points right, and the Z-axis points out the front of the device (toward the user).
+For more details, see the ARConfiguration WorldAlignment documentation [here](https://developer.apple.com/documentation/arkit/arconfiguration/worldalignment/gravity) and [here](https://developer.apple.com/documentation/arkit/arconfiguration/worldalignment/camera).
+
+
 ## Output Format ##
 
 I have chosen the following output formats, but they are easy to modify if you find something else more convenient.
