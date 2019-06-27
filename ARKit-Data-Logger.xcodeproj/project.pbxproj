@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		2E0C77BB22A7478C00C2D672 /* UsefulFunctions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E0C77BA22A7478C00C2D672 /* UsefulFunctions.swift */; };
+		2E7A6D4122C4B7C4007B7FBD /* AccumulatedPointCloud.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E7A6D4022C4B7C4007B7FBD /* AccumulatedPointCloud.swift */; };
 		2EC6C60022A673C2001C517D /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EC6C5FF22A673C2001C517D /* AppDelegate.swift */; };
 		2EC6C60222A673C2001C517D /* art.scnassets in Resources */ = {isa = PBXBuildFile; fileRef = 2EC6C60122A673C2001C517D /* art.scnassets */; };
 		2EC6C60422A673C2001C517D /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EC6C60322A673C2001C517D /* ViewController.swift */; };
@@ -18,6 +19,7 @@
 
 /* Begin PBXFileReference section */
 		2E0C77BA22A7478C00C2D672 /* UsefulFunctions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsefulFunctions.swift; sourceTree = "<group>"; };
+		2E7A6D4022C4B7C4007B7FBD /* AccumulatedPointCloud.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccumulatedPointCloud.swift; sourceTree = "<group>"; };
 		2EC6C5FC22A673C2001C517D /* ARKit-Data-Logger.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "ARKit-Data-Logger.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		2EC6C5FF22A673C2001C517D /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		2EC6C60122A673C2001C517D /* art.scnassets */ = {isa = PBXFileReference; lastKnownFileType = wrapper.scnassets; path = art.scnassets; sourceTree = "<group>"; };
@@ -39,6 +41,30 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		2E7A6D3D22C4B6CC007B7FBD /* Model */ = {
+			isa = PBXGroup;
+			children = (
+				2E7A6D4022C4B7C4007B7FBD /* AccumulatedPointCloud.swift */,
+			);
+			path = Model;
+			sourceTree = "<group>";
+		};
+		2E7A6D3E22C4B70D007B7FBD /* View */ = {
+			isa = PBXGroup;
+			children = (
+				2EC6C60522A673C2001C517D /* Main.storyboard */,
+			);
+			path = View;
+			sourceTree = "<group>";
+		};
+		2E7A6D3F22C4B72F007B7FBD /* Controller */ = {
+			isa = PBXGroup;
+			children = (
+				2EC6C60322A673C2001C517D /* ViewController.swift */,
+			);
+			path = Controller;
+			sourceTree = "<group>";
+		};
 		2EC6C5F322A673C2001C517D = {
 			isa = PBXGroup;
 			children = (
@@ -58,14 +84,15 @@
 		2EC6C5FE22A673C2001C517D /* ARKit-Data-Logger */ = {
 			isa = PBXGroup;
 			children = (
-				2EC6C5FF22A673C2001C517D /* AppDelegate.swift */,
-				2EC6C60322A673C2001C517D /* ViewController.swift */,
-				2EC6C60522A673C2001C517D /* Main.storyboard */,
+				2E7A6D3D22C4B6CC007B7FBD /* Model */,
+				2E7A6D3E22C4B70D007B7FBD /* View */,
+				2E7A6D3F22C4B72F007B7FBD /* Controller */,
 				2EC6C60822A673C3001C517D /* Assets.xcassets */,
 				2EC6C60122A673C2001C517D /* art.scnassets */,
 				2EC6C60A22A673C3001C517D /* LaunchScreen.storyboard */,
-				2EC6C60D22A673C3001C517D /* Info.plist */,
 				2E0C77BA22A7478C00C2D672 /* UsefulFunctions.swift */,
+				2EC6C5FF22A673C2001C517D /* AppDelegate.swift */,
+				2EC6C60D22A673C3001C517D /* Info.plist */,
 			);
 			path = "ARKit-Data-Logger";
 			sourceTree = "<group>";
@@ -145,6 +172,7 @@
 				2EC6C60422A673C2001C517D /* ViewController.swift in Sources */,
 				2E0C77BB22A7478C00C2D672 /* UsefulFunctions.swift in Sources */,
 				2EC6C60022A673C2001C517D /* AppDelegate.swift in Sources */,
+				2E7A6D4122C4B7C4007B7FBD /* AccumulatedPointCloud.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
