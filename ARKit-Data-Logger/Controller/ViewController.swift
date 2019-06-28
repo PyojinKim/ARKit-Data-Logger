@@ -22,6 +22,7 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
     
     @IBOutlet weak var numberOfFeatureLabel: UILabel!
     @IBOutlet weak var trackingStatusLabel: UILabel!
+    @IBOutlet weak var worldMappingStatusLabel: UILabel!
     @IBOutlet weak var updateRateLabel: UILabel!
     
     // constants for collecting data
@@ -30,6 +31,7 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
     let ARKIT_POINT_CLOUD = 1
     var isRecording: Bool = false
     let customQueue: DispatchQueue = DispatchQueue(label: "pyojinkim.me")
+    var accumulatedPointCloud = AccumulatedPointCloud()
     
     
     // variables for measuring time in iOS clock
@@ -121,6 +123,21 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
             
             customQueue.async {
                 self.isRecording = false
+                
+                /////////////////////////////////////////////////////////////////////////////
+                for i in 0...(self.accumulatedPointCloud.count - 1) {
+                    let ARKitPointData = String(format: "%.6f %.6f %.6f \n",
+                                                self.accumulatedPointCloud.points[i].x,
+                                                self.accumulatedPointCloud.points[i].y,
+                                                self.accumulatedPointCloud.points[i].z)
+                    if let ARKitPointDataToWrite = ARKitPointData.data(using: .utf8) {
+                        self.fileHandlers[self.ARKIT_POINT_CLOUD].write(ARKitPointDataToWrite)
+                    } else {
+                        os_log("Failed to write data record", log: OSLog.default, type: .fault)
+                    }
+                }
+                /////////////////////////////////////////////////////////////////////////////
+                
                 if (self.fileHandlers.count == self.numTextFiles) {
                     for handler in self.fileHandlers {
                         handler.closeFile()
@@ -154,6 +171,7 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
         let updateRate = self.mulSecondToNanoSecond / Double(timestamp - previousTimestamp)
         previousTimestamp = timestamp
         
+        let ARKitWorldMappingStatus = frame.worldMappingStatus.rawValue
         let ARKitTrackingState = frame.camera.trackingState
         let T_gc = frame.camera.transform
         
@@ -173,13 +191,62 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
         let t_y = T_gc.columns.3.y
         let t_z = T_gc.columns.3.z
         
+        /////////////////////////////////////////////////////////////////////////////
+        
+        /*print("imageResolution: \(frame.camera.imageResolution)")
+        print("intrinsics: \(frame.camera.intrinsics)")
+        print("projectionMatrix: \(frame.camera.projectionMatrix)")
+        
+        
+        let movieFrame = frame.capturedImage
+        
+        CVPixelBufferLockBaseAddress(movieFrame, [])
+        
+        let baseAddress = CVPixelBufferGetBaseAddress(movieFrame)
+        let width = CVPixelBufferGetWidth(movieFrame)
+        let height = CVPixelBufferGetHeight(movieFrame)
+        
+        print("width: \(width)")
+        print("height: \(height)")
+        
+        let bytesPerRow = CVPixelBufferGetBytesPerRow(movieFrame)
+        let buffer = baseAddress!.assumingMemoryBound(to: UInt8.self)
+        
+        
+        let x: Int = width/2
+        let y: Int = height/2
+        
+        let index = x + y * bytesPerRow
+        let b = buffer[index]
+        let g = buffer[index+1]
+        let r = buffer[index+2]
+        
+        print("r, g, b: \(r), \(g), \(b)")
+        
+        CVPixelBufferUnlockBaseAddress(movieFrame, [])*/
+        
+        /////////////////////////////////////////////////////////////////////////////
+        
         // dispatch queue to display UI
         DispatchQueue.main.async {
-            self.updateRateLabel.text = String(format:"%.3f Hz", updateRate)
+            self.numberOfFeatureLabel.text = String(format:"%05d", self.accumulatedPointCloud.count)
             self.trackingStatusLabel.text = "\(ARKitTrackingState)"
-            if let rawFeaturePointsArray = frame.rawFeaturePoints {
-                self.numberOfFeatureLabel.text = String(format:"%03d", rawFeaturePointsArray.points.count)
+            self.updateRateLabel.text = String(format:"%.3f Hz", updateRate)
+            
+            var worldMappingStatus = ""
+            switch ARKitWorldMappingStatus {
+            case 0:
+                worldMappingStatus = "notAvailable"
+            case 1:
+                worldMappingStatus = "limited"
+            case 2:
+                worldMappingStatus = "extending"
+            case 3:
+                worldMappingStatus = "mapped"
+            default:
+                worldMappingStatus = "switch default?"
             }
+            self.worldMappingStatusLabel.text = "\(worldMappingStatus)"
         }
         
         // custom queue to save ARKit processing data
@@ -203,17 +270,7 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
                     let featurePointsPosition = rawFeaturePointsArray.points
                     let featurePointsIndex = rawFeaturePointsArray.identifiers
                     for i in 0...(featurePointsPosition.count - 1) {
-                        let ARKitPointData = String(format: "%.0f %d %.6f %.6f %.6f \n",
-                                                    timestamp,
-                                                    featurePointsIndex[i],
-                                                    featurePointsPosition[i].x,
-                                                    featurePointsPosition[i].y,
-                                                    featurePointsPosition[i].z)
-                        if let ARKitPointDataToWrite = ARKitPointData.data(using: .utf8) {
-                            self.fileHandlers[self.ARKIT_POINT_CLOUD].write(ARKitPointDataToWrite)
-                        } else {
-                            os_log("Failed to write data record", log: OSLog.default, type: .fault)
-                        }
+                        self.accumulatedPointCloud.appendPointCloud(featurePointsPosition[i], featurePointsIndex[i])
                     }
                 }
             }
@@ -238,13 +295,13 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
         self.fileURLs.removeAll()
         
         // create ARKit result text files
-        let header = "Created at \(timeToString())"
+        let startHeader = ""
         for i in 0...(self.numTextFiles - 1) {
             var url = URL(fileURLWithPath: NSTemporaryDirectory())
             url.appendPathComponent(fileNames[i])
             self.fileURLs.append(url)
             
-            // delete previous text file
+            // delete previous text files
             if (FileManager.default.fileExists(atPath: url.path)) {
                 do {
                     try FileManager.default.removeItem(at: url)
@@ -254,17 +311,28 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
                 }
             }
             
-            // create new text file
-            if (!FileManager.default.createFile(atPath: url.path, contents: header.data(using: String.Encoding.utf8), attributes: nil)) {
+            // create new text files
+            if (!FileManager.default.createFile(atPath: url.path, contents: startHeader.data(using: String.Encoding.utf8), attributes: nil)) {
                 self.errorMsg(msg: "cannot create file \(self.fileNames[i])")
                 return false
             }
             
-            // assign new file handler
+            // assign new file handlers
             let fileHandle: FileHandle? = FileHandle(forWritingAtPath: url.path)
             if let handle = fileHandle {
                 self.fileHandlers.append(handle)
             } else {
+                return false
+            }
+        }
+        
+        // write current recording time information
+        let timeHeader = "# Created at \(timeToString()) in Seoul South Korea \n"
+        for i in 0...(self.numTextFiles - 1) {
+            if let timeHeaderToWrite = timeHeader.data(using: .utf8) {
+                self.fileHandlers[i].write(timeHeaderToWrite)
+            } else {
+                os_log("Failed to write data record", log: OSLog.default, type: .fault)
                 return false
             }
         }
