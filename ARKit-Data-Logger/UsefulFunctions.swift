@@ -32,5 +32,5 @@ func timeToString() -> String {
     let hour = calendar.component(.hour, from: date)
     let minute = calendar.component(.minute, from: date)
     let sec = calendar.component(.second, from: date)
-    return String(format:"%04d-%02d-%02d %02d:%02d:%02d in KST", year, month, day, hour, minute, sec)
+    return String(format:"%04d-%02d-%02d %02d:%02d:%02d in PST", year, month, day, hour, minute, sec)
 }

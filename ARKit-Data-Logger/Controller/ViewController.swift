@@ -10,6 +10,7 @@ import UIKit
 import SceneKit
 import ARKit
 import os.log
+import Accelerate
 
 
 class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
@@ -124,20 +125,23 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
             customQueue.async {
                 self.isRecording = false
                 
-                /////////////////////////////////////////////////////////////////////////////
+                // save ARKit 3D point cloud only for visualization
                 for i in 0...(self.accumulatedPointCloud.count - 1) {
-                    let ARKitPointData = String(format: "%.6f %.6f %.6f \n",
+                    let ARKitPointData = String(format: "%.6f %.6f %.6f %d %d %d \n",
                                                 self.accumulatedPointCloud.points[i].x,
                                                 self.accumulatedPointCloud.points[i].y,
-                                                self.accumulatedPointCloud.points[i].z)
+                                                self.accumulatedPointCloud.points[i].z,
+                                                self.accumulatedPointCloud.colors[i].x,
+                                                self.accumulatedPointCloud.colors[i].y,
+                                                self.accumulatedPointCloud.colors[i].z)
                     if let ARKitPointDataToWrite = ARKitPointData.data(using: .utf8) {
                         self.fileHandlers[self.ARKIT_POINT_CLOUD].write(ARKitPointDataToWrite)
                     } else {
                         os_log("Failed to write data record", log: OSLog.default, type: .fault)
                     }
                 }
-                /////////////////////////////////////////////////////////////////////////////
                 
+                // close the file handlers
                 if (self.fileHandlers.count == self.numTextFiles) {
                     for handler in self.fileHandlers {
                         handler.closeFile()
@@ -152,6 +156,7 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
             // initialize UI on the screen
             self.numberOfFeatureLabel.text = ""
             self.trackingStatusLabel.text = ""
+            self.worldMappingStatusLabel.text = ""
             self.updateRateLabel.text = ""
             
             self.startStopButton.setTitle("Start", for: .normal)
@@ -170,6 +175,10 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
         let timestamp = frame.timestamp * self.mulSecondToNanoSecond
         let updateRate = self.mulSecondToNanoSecond / Double(timestamp - previousTimestamp)
         previousTimestamp = timestamp
+        
+        let imageFrame = frame.capturedImage
+        let imageResolution = frame.camera.imageResolution
+        let K = frame.camera.intrinsics
         
         let ARKitWorldMappingStatus = frame.worldMappingStatus.rawValue
         let ARKitTrackingState = frame.camera.trackingState
@@ -190,42 +199,6 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
         let t_x = T_gc.columns.3.x
         let t_y = T_gc.columns.3.y
         let t_z = T_gc.columns.3.z
-        
-        /////////////////////////////////////////////////////////////////////////////
-        
-        /*print("imageResolution: \(frame.camera.imageResolution)")
-        print("intrinsics: \(frame.camera.intrinsics)")
-        print("projectionMatrix: \(frame.camera.projectionMatrix)")
-        
-        
-        let movieFrame = frame.capturedImage
-        
-        CVPixelBufferLockBaseAddress(movieFrame, [])
-        
-        let baseAddress = CVPixelBufferGetBaseAddress(movieFrame)
-        let width = CVPixelBufferGetWidth(movieFrame)
-        let height = CVPixelBufferGetHeight(movieFrame)
-        
-        print("width: \(width)")
-        print("height: \(height)")
-        
-        let bytesPerRow = CVPixelBufferGetBytesPerRow(movieFrame)
-        let buffer = baseAddress!.assumingMemoryBound(to: UInt8.self)
-        
-        
-        let x: Int = width/2
-        let y: Int = height/2
-        
-        let index = x + y * bytesPerRow
-        let b = buffer[index]
-        let g = buffer[index+1]
-        let r = buffer[index+2]
-        
-        print("r, g, b: \(r), \(g), \(b)")
-        
-        CVPixelBufferUnlockBaseAddress(movieFrame, [])*/
-        
-        /////////////////////////////////////////////////////////////////////////////
         
         // dispatch queue to display UI
         DispatchQueue.main.async {
@@ -267,10 +240,53 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
                 
                 // 2) record ARKit 3D point cloud only for visualization
                 if let rawFeaturePointsArray = frame.rawFeaturePoints {
-                    let featurePointsPosition = rawFeaturePointsArray.points
-                    let featurePointsIndex = rawFeaturePointsArray.identifiers
-                    for i in 0...(featurePointsPosition.count - 1) {
-                        self.accumulatedPointCloud.appendPointCloud(featurePointsPosition[i], featurePointsIndex[i])
+                    
+                    // constants for feature points
+                    let points = rawFeaturePointsArray.points
+                    let identifiers = rawFeaturePointsArray.identifiers
+                    let pointsCount = points.count
+                    
+                    let kDownscaleFactor: CGFloat = 16.0
+                    let scale = Double(1 / kDownscaleFactor)
+                    
+                    var projectedPoints = [CGPoint]()
+                    var validPoints = [vector_float3]()
+                    var validIdentifiers = [UInt64]()
+                    
+                    
+                    // project all feature points into image 2D coordinate
+                    for i in 0...(pointsCount - 1) {
+                        let projectedPoint = frame.camera.projectPoint(points[i], orientation: .landscapeRight, viewportSize: imageResolution)
+                        if ((projectedPoint.x >= 0 && projectedPoint.x <= imageResolution.width - 1) &&
+                            (projectedPoint.y >= 0 && projectedPoint.y <= imageResolution.height - 1)) {
+                            projectedPoints.append(projectedPoint)
+                            validPoints.append(points[i])
+                            validIdentifiers.append(identifiers[i])
+                        }
+                    }
+                    
+                    
+                    // compute scaled YCbCr image buffer
+                    let scaledBuffer = self.IBASampleScaledCapturedPixelBuffer(imageFrame: imageFrame, scale: scale)
+                    let scaledLumaBuffer = scaledBuffer.0
+                    let scaledCbcrBuffer = scaledBuffer.1
+                    
+                    
+                    // perform YCbCr image sampling
+                    for i in 0...(projectedPoints.count - 1) {
+                        let projectedPoint = projectedPoints[i]
+                        let lumaPoint = CGPoint(x: Double(projectedPoint.x) * scale, y: Double(projectedPoint.y) * scale)
+                        let cbcrPoint = CGPoint(x: Double(projectedPoint.x) * scale, y: Double(projectedPoint.y) * scale)
+                        
+                        let lumaPixelAddress = scaledLumaBuffer.data + scaledLumaBuffer.rowBytes * Int(lumaPoint.y) + Int(lumaPoint.x)
+                        let cbcrPixelAddress = scaledCbcrBuffer.data + scaledCbcrBuffer.rowBytes * Int(cbcrPoint.y) + Int(cbcrPoint.x) * 2;
+                        
+                        let luma = lumaPixelAddress.load(as: UInt8.self)
+                        let cb = cbcrPixelAddress.load(as: UInt8.self)
+                        let cr = (cbcrPixelAddress + 1).load(as: UInt8.self)
+                        
+                        let color = simd_make_uint3(UInt32(luma), UInt32(cb), UInt32(cr))
+                        self.accumulatedPointCloud.appendPointCloud(validPoints[i], validIdentifiers[i], color)
                     }
                 }
             }
@@ -327,7 +343,7 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
         }
         
         // write current recording time information
-        let timeHeader = "# Created at \(timeToString()) in Seoul South Korea \n"
+        let timeHeader = "# Created at \(timeToString()) in Burnaby Canada \n"
         for i in 0...(self.numTextFiles - 1) {
             if let timeHeaderToWrite = timeHeader.data(using: .utf8) {
                 self.fileHandlers[i].write(timeHeaderToWrite)
@@ -339,5 +355,51 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
         
         // return true if everything is alright
         return true
+    }
+    
+    
+    private func IBAPixelBufferGetPlanarBuffer(pixelBuffer: CVPixelBuffer, planeIndex: size_t) -> vImage_Buffer {
+        
+        // assumes that pixel buffer base address is already locked
+        let baseAddress = CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, planeIndex)
+        let bytesPerRow = CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, planeIndex)
+        let width = CVPixelBufferGetWidthOfPlane(pixelBuffer, planeIndex)
+        let height = CVPixelBufferGetHeightOfPlane(pixelBuffer, planeIndex)
+        
+        return vImage_Buffer(data: baseAddress, height: vImagePixelCount(height), width: vImagePixelCount(width), rowBytes: bytesPerRow)
+    }
+    
+    
+    private func IBASampleScaledCapturedPixelBuffer(imageFrame: CVPixelBuffer, scale: Double) -> (vImage_Buffer, vImage_Buffer) {
+        
+        // calculate scaled size for buffers
+        let baseWidth = Double(CVPixelBufferGetWidth(imageFrame))
+        let baseHeight = Double(CVPixelBufferGetHeight(imageFrame))
+        
+        let scaledWidth = vImagePixelCount(ceil(baseWidth * scale))
+        let scaledHeight = vImagePixelCount(ceil(baseHeight * scale))
+        
+        
+        // lock the source pixel buffer
+        CVPixelBufferLockBaseAddress(imageFrame, CVPixelBufferLockFlags.readOnly)
+        
+        // allocate buffer for scaled Luma & retrieve address of source Luma and scale it
+        var scaledLumaBuffer = vImage_Buffer()
+        var sourceLumaBuffer = self.IBAPixelBufferGetPlanarBuffer(pixelBuffer: imageFrame, planeIndex: 0)
+        vImageBuffer_Init(&scaledLumaBuffer, scaledHeight, scaledWidth, 8, vImage_Flags(kvImagePrintDiagnosticsToConsole))
+        vImageScale_Planar8(&sourceLumaBuffer, &scaledLumaBuffer, nil, vImage_Flags(kvImagePrintDiagnosticsToConsole))
+        
+        // allocate buffer for scaled CbCr & retrieve address of source CbCr and scale it
+        var scaledCbcrBuffer = vImage_Buffer()
+        var sourceCbcrBuffer = self.IBAPixelBufferGetPlanarBuffer(pixelBuffer: imageFrame, planeIndex: 1)
+        vImageBuffer_Init(&scaledCbcrBuffer, scaledHeight, scaledWidth, 8, vImage_Flags(kvImagePrintDiagnosticsToConsole))
+        vImageScale_CbCr8(&sourceCbcrBuffer, &scaledCbcrBuffer, nil, vImage_Flags(kvImagePrintDiagnosticsToConsole))
+        
+        // unlock source buffer now
+        CVPixelBufferUnlockBaseAddress(imageFrame, CVPixelBufferLockFlags.readOnly)
+        
+        
+        // return the scaled Luma and CbCr buffer
+        return (scaledLumaBuffer, scaledCbcrBuffer)
     }
 }
