@@ -19,7 +19,7 @@ class AccumulatedPointCloud {
     }
     
     init() {
-        let baseCapacity = 30000
+        let baseCapacity = 20000
         self.points.reserveCapacity(baseCapacity)
         self.colors.reserveCapacity(baseCapacity)
         self.identifiedIndices.reserveCapacity(baseCapacity)

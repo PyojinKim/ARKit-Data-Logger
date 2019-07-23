@@ -246,7 +246,7 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
                     let identifiers = rawFeaturePointsArray.identifiers
                     let pointsCount = points.count
                     
-                    let kDownscaleFactor: CGFloat = 16.0
+                    let kDownscaleFactor: CGFloat = 4.0
                     let scale = Double(1 / kDownscaleFactor)
                     
                     var projectedPoints = [CGPoint]()
