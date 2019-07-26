@@ -30,7 +30,7 @@ For more details, see the ARConfiguration WorldAlignment documentation [here](ht
 I have chosen the following output formats, but they are easy to modify if you find something else more convenient.
 
 * ARKit 6-DoF Camera Pose (ARKit_camera_pose.txt): `timestamp, r_11, r_12, r_13, t_x, r_21, r_22, r_23, t_y, r_31, r_32, r_33, t_z \n`
-* ARKit 3D Point Cloud (ARKit_point_cloud.txt): `timestamp, index, position_x, position_y, position_z \n`
+* ARKit 3D Point Cloud (ARKit_point_cloud.txt): `position_x, position_y, position_z, color_Y, color_Cb, color_Cr \n`
 
 Note that ARKit_camera_pose.txt contains a N x 12 table, where N is the number of frames of this sequence.
 Row i represents the i'th pose of the camera coordinate system via a 3x4 transformation matrix similar to KITTI dataset pose format.

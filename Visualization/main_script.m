@@ -5,27 +5,31 @@ rand('state',0); % rand('state',sum(100*clock));
 dbstop if error;
 
 
+%% common setting to read text files
+
+delimiter = ' ';
+headerlinesIn = 1;
+nanoSecondToSecond = 1000000000;
+
+
 %% 1) parse ARKit camera pose data
 
 % parsing ARKit camera pose data text file
 textFileDir = 'ARKit_camera_pose.txt';
-delimiter = ' ';
-headerlinesIn = 0;
 textARKitPoseData = importdata(textFileDir, delimiter, headerlinesIn);
-ARKitPoseTime = textARKitPoseData(:,1).';
-ARKitPoseTime = (ARKitPoseTime - ARKitPoseTime(1)) ./ 1000000000;
-
+ARKitPoseTime = textARKitPoseData.data(:,1).';
+ARKitPoseTime = (ARKitPoseTime - ARKitPoseTime(1)) ./ nanoSecondToSecond;
+ARKitPoseData = textARKitPoseData.data(:,[2:13]);
 
 % ARKit camera pose with various 6-DoF camera pose representations
-ARKitPose = textARKitPoseData(:,[2:13]);
-numPose = size(ARKitPose,1);
+numPose = size(ARKitPoseData,1);
 T_gc_ARKit = cell(1,numPose);
 stateEsti_ARKit = zeros(6,numPose);
 R_gc_ARKit = zeros(3,3,numPose);
 for k = 1:numPose
     
     % rigid body transformation matrix (4x4)
-    T_gc_ARKit{k} = [reshape(ARKitPose(k,:).', 4, 3).'; [0, 0, 0, 1]];
+    T_gc_ARKit{k} = [reshape(ARKitPoseData(k,:).', 4, 3).'; [0, 0, 0, 1]];
     
     % state vector and rotation matrix
     R_gc_ARKit(:,:,k) = T_gc_ARKit{k}(1:3,1:3);
@@ -34,20 +38,30 @@ for k = 1:numPose
     stateEsti_ARKit(4:6,k) = [roll; pitch; yaw];
 end
 
+% plot update rate of ARKit camera pose
+timeDifference = diff(ARKitPoseTime);
+meanUpdateRate = (1/mean(timeDifference));
+figure;
+plot(ARKitPoseTime(2:end), timeDifference, 'm'); hold on; grid on; axis tight;
+set(gcf,'color','w'); hold off;
+axis([min(ARKitPoseTime) max(ARKitPoseTime) min(timeDifference) max(timeDifference)]);
+set(get(gcf,'CurrentAxes'),'FontName','Times New Roman','FontSize',17);
+xlabel('Time [sec]','FontName','Times New Roman','FontSize',17);
+ylabel('Time Difference [sec]','FontName','Times New Roman','FontSize',17);
+title(['Mean Update Rate: ', num2str(meanUpdateRate), ' Hz'],'FontName','Times New Roman','FontSize',17);
+set(gcf,'Units','pixels','Position',[100 200 1800 900]);  % modify figure
+
 
 %% 2) parse ARKit point cloud data
 
 % parsing ARKit point cloud data text file
 textFileDir = 'ARKit_point_cloud.txt';
-delimiter = ' ';
-headerlinesIn = 0;
 textARKitPointData = importdata(textFileDir, delimiter, headerlinesIn);
-ARKitPointTime = textARKitPointData(:,1).';
-ARKitPointTime = (ARKitPointTime - ARKitPointTime(1)) ./ 1000000000;
-
 
 % ARKit 3D point cloud
-ARKitPoints = textARKitPointData(:,[3:5]).';
+ARKitPoints = textARKitPointData.data(:,[1:3]).';
+ARKitColorsYCbCr = textARKitPointData.data(:,[4:6]).';
+ARKitColors = YCbCr2RGB(ARKitColorsYCbCr);
 numPoints = size(ARKitPoints,2);
 
 
@@ -74,7 +88,7 @@ end
 % 2) plot ARKit VIO motion estimation results
 figure;
 h_ARKit = plot3(stateEsti_ARKit(1,:),stateEsti_ARKit(2,:),stateEsti_ARKit(3,:),'m','LineWidth',2); hold on; grid on;
-scatter3(ARKitPoints(1,:), ARKitPoints(2,:), ARKitPoints(3,:),'k.');
+scatter3(ARKitPoints(1,:), ARKitPoints(2,:), ARKitPoints(3,:), 50*ones(numPoints,1), (ARKitColors ./ 255).','.');
 plot_inertial_frame(0.5); legend(h_ARKit,{'ARKit'}); axis equal; view(26, 73);
 xlabel('x [m]','fontsize',10); ylabel('y [m]','fontsize',10); zlabel('z [m]','fontsize',10); hold off;
 
